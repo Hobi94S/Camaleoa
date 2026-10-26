@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+model Plan {
+  id String @id
+  name String
+  subtitle String
+  price Int
+  duration String
+  features String
+  appointments Appointment[]
+}
+model Client {
+  id String @id @default(cuid())
+  name String
+  email String
+  whatsapp String
+  appointments Appointment[]
+  createdAt DateTime @default(now())
+}
+model AnamnesisResponse {
+  id String @id @default(cuid())
+  lifestyle String
+  goals String
+  challenges String
+  appointmentId String @unique
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+}
+model Slot {
+  id String @id @default(cuid())
+  startsAt DateTime @unique
+  blocked Boolean @default(false)
+  reserved Boolean @default(false)
+  appointments Appointment[]
+}
+model Appointment {
+  id String @id @default(cuid())
+  clientId String
+  client Client @relation(fields: [clientId], references: [id])
+  planId String
+  plan Plan @relation(fields: [planId], references: [id])
+  slotId String
+  slot Slot @relation(fields: [slotId], references: [id])
+  status String @default("PENDING")
+  anamnesis AnamnesisResponse?
+  createdAt DateTime @default(now())
+}
