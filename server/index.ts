@@ -3,7 +3,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
@@ -22,12 +22,32 @@ app.get('/api/plans',asyncRoute(async(_,res)=>res.json((await db.plan.findMany({
 app.get('/api/slots/available',asyncRoute(async(_,res)=>res.json(await db.slot.findMany({where:{blocked:false,reserved:false,startsAt:{gt:new Date()}},orderBy:{startsAt:'asc'}}))));
 app.post('/api/bookings',rateLimit({windowMs:60000,limit:10}),asyncRoute(async(req,res)=>{
 const input=bookingSchema.parse(req.body);
+const confirmationToken=randomBytes(32).toString('hex');
+const confirmationTokenHash=createHash('sha256').update(confirmationToken).digest('hex');
 const booking=await db.$transaction(async tx=>{
 if(!await tx.plan.findUnique({where:{id:input.planId}}))throw Object.assign(Error('Plan indisponível.'),{status:400});
 const reserved=await tx.slot.updateMany({where:{id:input.slotId,reserved:false,blocked:false,startsAt:{gt:new Date()}},data:{reserved:true}});
 if(!reserved.count)throw Object.assign(Error('Este horário acabou de ser reservado. Escolha outro horário.'),{status:409});
-return tx.appointment.create({data:{plan:{connect:{id:input.planId}},slot:{connect:{id:input.slotId}},client:{create:{name:input.name,email:input.email,whatsapp:input.whatsapp}},anamnesis:{create:{lifestyle:input.lifestyle,goals:input.goals,challenges:input.challenges}}},select:{id:true,status:true}});
-});res.status(201).json(booking);
+return tx.appointment.create({data:{plan:{connect:{id:input.planId}},slot:{connect:{id:input.slotId}},client:{create:{name:input.name,email:input.email,whatsapp:input.whatsapp}},anamnesis:{create:{lifestyle:input.lifestyle,goals:input.goals,challenges:input.challenges}},customerConfirmationTokenHash:confirmationTokenHash},select:{id:true,status:true}});
+});res.status(201).json({...booking,confirmationToken});
+}));
+app.post('/api/bookings/:id/confirm',rateLimit({windowMs:60000,limit:10}),asyncRoute(async(req,res)=>{
+const id=z.string().min(1).parse(req.params.id);
+const {token}=z.object({token:z.string().regex(/^[a-f0-9]{64}$/)}).parse(req.body);
+const tokenHash=createHash('sha256').update(token).digest('hex');
+const customerConfirmedAt=await db.$transaction(async tx=>{
+const booking=await tx.appointment.findUnique({where:{id},select:{customerConfirmationTokenHash:true,customerConfirmedAt:true,status:true}});
+if(!booking||!booking.customerConfirmationTokenHash)throw Object.assign(Error('Confirmação não encontrada.'),{status:404});
+const stored=Buffer.from(booking.customerConfirmationTokenHash,'hex');
+const supplied=Buffer.from(tokenHash,'hex');
+if(stored.length!==supplied.length||!timingSafeEqual(stored,supplied))throw Object.assign(Error('Token de confirmação inválido.'),{status:403});
+if(booking.status==='CANCELLED')throw Object.assign(Error('Este pedido foi cancelado e não pode ser confirmado.'),{status:409});
+if(!booking.customerConfirmedAt)await tx.appointment.updateMany({where:{id,customerConfirmedAt:null,status:{not:'CANCELLED'}},data:{customerConfirmedAt:new Date()}});
+const current=await tx.appointment.findUniqueOrThrow({where:{id},select:{customerConfirmedAt:true,status:true}});
+if(current.status==='CANCELLED')throw Object.assign(Error('Este pedido foi cancelado e não pode ser confirmado.'),{status:409});
+return current.customerConfirmedAt;
+});
+res.json({confirmed:true,customerConfirmedAt});
 }));
 app.post('/api/admin/login',rateLimit({windowMs:15*60000,limit:10}),asyncRoute(async(req,res)=>{const {email,password}=z.object({email:z.string().email(),password:z.string().min(1)}).parse(req.body);const expected=process.env.ADMIN_PASSWORD||'';const a=Buffer.from(password),b=Buffer.from(expected);if(email!==process.env.ADMIN_EMAIL||a.length!==b.length||!timingSafeEqual(a,b)){res.status(401).json({error:'E-mail ou senha incorretos.'});return;}res.cookie('session',jwt.sign({role:'admin'},secret,{expiresIn:'8h'}),{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',maxAge:8*3600000});res.json({ok:true})}));
 app.post('/api/admin/logout',(_,res)=>{res.clearCookie('session');res.json({ok:true})});

@@ -32,7 +32,7 @@ Em produção use HTTPS e configure `CLIENT_ORIGIN` para a URL final. Mantenha o
 ## Estrutura
 
 - `src/App.tsx`: apresentação da marca, metodologia e planos dinâmicos.
-- `src/Booking.tsx`: quatro etapas (contato, anamnese, calendário, revisão) e confirmação.
+- `src/Booking.tsx`: quatro etapas (contato, anamnese, calendário, revisão), alternativa para conflitos de horário e confirmação do cliente.
 - `src/Admin.tsx`: login, pesquisa, filtro, anamnese, status e disponibilidade.
 - `src/styles.css`: identidade visual editorial e layouts responsivos; Tailwind também está habilitado.
 - `shared/validation.ts`: contratos Zod compartilhados.
@@ -50,6 +50,7 @@ O seed é idempotente para planos e horários existentes e não desfaz bloqueios
 | GET | `/api/plans` | Planos e benefícios |
 | GET | `/api/slots/available` | Horários futuros, livres e não bloqueados |
 | POST | `/api/bookings` | Cadastro, anamnese e reserva atômica |
+| POST | `/api/bookings/:id/confirm` | Registrar a conferência final da cliente usando token privado |
 | POST | `/api/admin/login` | Autenticação |
 | POST | `/api/admin/logout` | Encerrar sessão |
 | GET | `/api/admin/bookings` | Agendamentos e perfis completos |
@@ -58,7 +59,7 @@ O seed é idempotente para planos e horários existentes e não desfaz bloqueios
 | POST | `/api/admin/slots` | Adicionar horário UTC ISO 8601 |
 | PATCH | `/api/admin/slots/:id` | Bloquear/liberar horário livre |
 
-As rotas administrativas de dados exigem sessão. Erros retornam `{ "error": "mensagem" }` e status 400, 401, 403, 404, 409 ou 500. Reservas recebem 201 e `{id, status}`. Status: PENDING, CONFIRMED, COMPLETED, CANCELLED. Cancelar libera o horário; reservas canceladas não podem ser reabertas. Horários reservados não podem ser bloqueados.
+As rotas administrativas de dados exigem sessão. Erros retornam `{ "error": "mensagem" }` e status 400, 401, 403, 404, 409 ou 500. Reservas recebem 201 e `{id, status, confirmationToken}`; o token é emitido uma única vez, seu hash é persistido, e ele autoriza a confirmação final do cliente. Essa confirmação é registrada em `customerConfirmedAt` sem substituir a confirmação manual da consultora. Status: PENDING, CONFIRMED, COMPLETED, CANCELLED. Cancelar libera o horário; reservas canceladas não podem ser reabertas. Horários reservados não podem ser bloqueados.
 
 Exemplo de corpo de reserva:
 

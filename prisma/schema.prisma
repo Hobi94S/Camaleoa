@@ -46,6 +46,8 @@ model Appointment {
   slotId String
   slot Slot @relation(fields: [slotId], references: [id])
   status String @default("PENDING")
+  customerConfirmedAt DateTime?
+  customerConfirmationTokenHash String?
   anamnesis AnamnesisResponse?
   createdAt DateTime @default(now())
 }
