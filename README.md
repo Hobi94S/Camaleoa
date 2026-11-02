@@ -70,6 +70,9 @@ Exemplo de corpo de reserva:
 ## Fotos do protótipo
 https://drive.google.com/drive/folders/1ijHM5pWMY4ZWJIBFlb9NHAke429b-sQG?usp=sharing
 
+## Vídeo do protótipo funcionando
+https://www.youtube.com/watch?v=HxKLRocIXq0
+
 ## Escopo e conteúdo
 
 O pedido é registrado como pendente e confirmado manualmente pela consultora. Não há integração de pagamento, WhatsApp, e-mail ou videoconferência: o sistema informa isso à cliente e não simula notificações enviadas. O consentimento é obrigatório para enviar dados. Fotos externas do Unsplash são ilustrativas, não retratos reais de Suênia/clientes. Valores e textos dos planos são sugestões iniciais no seed; revise antes do lançamento. Depoimentos e números de clientes não foram inventados: adicione prova social real com autorização da marca.
