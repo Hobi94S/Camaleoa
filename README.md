@@ -83,4 +83,3 @@ O calendário considera cada registro um início de encontro exclusivo; os horá
 
 - [Preparação do deploy e decisões do fluxo](docs/publicacao.md): configuração `vercel.json` para Vercel + Neon PostgreSQL, variáveis, migrações e roteiro de verificação externa; `render.yaml` como alternativa. Publicação pública ainda pendente de conta/configuração da hospedagem.
 - [Plano de coleta e análise](docs/coleta-de-dados.md): recrutamento, tarefas e tratamento dos resultados acadêmicos.
-- Instrumento preenchível/imprimível: `/avaliacao.html` (por exemplo, `http://localhost:5173/avaliacao.html` durante desenvolvimento). Não envia respostas: o pesquisador salva os registros em PDF. O link público será a origem do deploy seguida desse caminho.
