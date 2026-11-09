@@ -78,3 +78,9 @@ https://www.youtube.com/watch?v=HxKLRocIXq0
 O pedido é registrado como pendente e confirmado manualmente pela consultora. Não há integração de pagamento, WhatsApp, e-mail ou videoconferência: o sistema informa isso à cliente e não simula notificações enviadas. O consentimento é obrigatório para enviar dados. Fotos externas do Unsplash são ilustrativas, não retratos reais de Suênia/clientes. Valores e textos dos planos são sugestões iniciais no seed; revise antes do lançamento. Depoimentos e números de clientes não foram inventados: adicione prova social real com autorização da marca.
 
 O calendário considera cada registro um início de encontro exclusivo; os horários de demonstração têm 3 horas de intervalo. As durações dos pacotes descrevem a jornada comercial, e encontros posteriores são combinados pela consultora. Não há sincronização com calendários externos nem detecção de sobreposição por duração entre horários diferentes.
+
+## Entrega da semana: validações, publicação e campo
+
+- [Preparação do deploy e decisões do fluxo](docs/publicacao.md): configuração `vercel.json` para Vercel + Neon PostgreSQL, variáveis, migrações e roteiro de verificação externa; `render.yaml` como alternativa. Publicação pública ainda pendente de conta/configuração da hospedagem.
+- [Plano de coleta e análise](docs/coleta-de-dados.md): recrutamento, tarefas e tratamento dos resultados acadêmicos.
+- Instrumento preenchível/imprimível: `/avaliacao.html` (por exemplo, `http://localhost:5173/avaliacao.html` durante desenvolvimento). Não envia respostas: o pesquisador salva os registros em PDF. O link público será a origem do deploy seguida desse caminho.

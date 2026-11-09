@@ -10,7 +10,12 @@
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
     "db:setup": "node scripts/prepare-db.mjs && prisma generate && prisma db push && tsx prisma/seed.ts",
-    "test": "tsx --test server/booking.test.ts"
+    "test": "tsx --test server/*.test.ts",
+    "build:vercel": "prisma generate --schema prisma/postgresql/schema.prisma && npm run build",
+    "db:generate:local": "prisma generate",
+    "db:generate:postgres": "prisma generate --schema prisma/postgresql/schema.prisma",
+    "db:deploy:postgres": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

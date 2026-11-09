@@ -1,0 +1,28 @@
+# SQLite exige disco persistente; este blueprint usa recursos pagos.
+services:
+  - type: web
+    name: camaleoa
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npm run db:setup && npm start
+    healthCheckPath: /api/health
+    disk:
+      name: camaleoa-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:/var/data/camaleoa.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false

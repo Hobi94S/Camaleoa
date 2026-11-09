@@ -13,25 +13,30 @@ const db = new PrismaClient();
 export const app = express();
 const secret=process.env.JWT_SECRET;
 if(!secret || secret.length<32) throw new Error('JWT_SECRET must contain at least 32 characters.');
+if(process.env.NODE_ENV==='production'){
+  if(!process.env.CLIENT_ORIGIN?.startsWith('https://') || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD==='change-this-before-production') throw new Error('Configure CLIENT_ORIGIN HTTPS e credenciais administrativas próprias antes de publicar.');
+  app.set('trust proxy', 1);
+}
 app.use(cors({origin:process.env.CLIENT_ORIGIN || 'http://localhost:5173',credentials:true}));
 app.use(express.json({limit:'20kb'}));app.use(cookieParser());
 app.use('/api', (req,res,next)=>{res.set('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method) && req.headers.origin && req.headers.origin !== (process.env.CLIENT_ORIGIN || 'http://localhost:5173')) {res.status(403).json({error:'Origem não autorizada.'});return;}next()});
 const asyncRoute=(fn:(req:Request,res:Response)=>Promise<unknown>)=>(req:Request,res:Response,next:NextFunction)=>{Promise.resolve(fn(req,res)).catch(next)};
 const protect=(req:Request,res:Response,next:NextFunction)=>{try{const payload=jwt.verify(req.cookies.session || '',secret);if(typeof payload==='string'||payload.role!=='admin')throw Error();next()}catch{res.status(401).json({error:'Entre para acessar o painel.'})}};
+app.get('/api/health',asyncRoute(async(_,res)=>{await db.$queryRaw`SELECT 1`;res.json({ok:true})}));
 app.get('/api/plans',asyncRoute(async(_,res)=>res.json((await db.plan.findMany({orderBy:{price:'asc'}})).map(p=>({...p,features:JSON.parse(p.features)})))));
 app.get('/api/slots/available',asyncRoute(async(_,res)=>res.json(await db.slot.findMany({where:{blocked:false,reserved:false,startsAt:{gt:new Date()}},orderBy:{startsAt:'asc'}}))));
-app.post('/api/bookings',rateLimit({windowMs:60000,limit:10}),asyncRoute(async(req,res)=>{
+app.post('/api/bookings',rateLimit({windowMs:60000,limit:10,message:{error:'Muitas tentativas. Aguarde um minuto e tente novamente.'}}),asyncRoute(async(req,res)=>{
 const input=bookingSchema.parse(req.body);
 const confirmationToken=randomBytes(32).toString('hex');
 const confirmationTokenHash=createHash('sha256').update(confirmationToken).digest('hex');
 const booking=await db.$transaction(async tx=>{
-if(!await tx.plan.findUnique({where:{id:input.planId}}))throw Object.assign(Error('Plan indisponível.'),{status:400});
+if(!await tx.plan.findUnique({where:{id:input.planId}}))throw Object.assign(Error('Plano indisponível.'),{status:400});
 const reserved=await tx.slot.updateMany({where:{id:input.slotId,reserved:false,blocked:false,startsAt:{gt:new Date()}},data:{reserved:true}});
 if(!reserved.count)throw Object.assign(Error('Este horário acabou de ser reservado. Escolha outro horário.'),{status:409});
 return tx.appointment.create({data:{plan:{connect:{id:input.planId}},slot:{connect:{id:input.slotId}},client:{create:{name:input.name,email:input.email,whatsapp:input.whatsapp}},anamnesis:{create:{lifestyle:input.lifestyle,goals:input.goals,challenges:input.challenges}},customerConfirmationTokenHash:confirmationTokenHash},select:{id:true,status:true}});
 });res.status(201).json({...booking,confirmationToken});
 }));
-app.post('/api/bookings/:id/confirm',rateLimit({windowMs:60000,limit:10}),asyncRoute(async(req,res)=>{
+app.post('/api/bookings/:id/confirm',rateLimit({windowMs:60000,limit:10,message:{error:'Muitas tentativas. Aguarde um minuto e tente novamente.'}}),asyncRoute(async(req,res)=>{
 const id=z.string().min(1).parse(req.params.id);
 const {token}=z.object({token:z.string().regex(/^[a-f0-9]{64}$/)}).parse(req.body);
 const tokenHash=createHash('sha256').update(token).digest('hex');
@@ -49,7 +54,7 @@ return current.customerConfirmedAt;
 });
 res.json({confirmed:true,customerConfirmedAt});
 }));
-app.post('/api/admin/login',rateLimit({windowMs:15*60000,limit:10}),asyncRoute(async(req,res)=>{const {email,password}=z.object({email:z.string().email(),password:z.string().min(1)}).parse(req.body);const expected=process.env.ADMIN_PASSWORD||'';const a=Buffer.from(password),b=Buffer.from(expected);if(email!==process.env.ADMIN_EMAIL||a.length!==b.length||!timingSafeEqual(a,b)){res.status(401).json({error:'E-mail ou senha incorretos.'});return;}res.cookie('session',jwt.sign({role:'admin'},secret,{expiresIn:'8h'}),{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',maxAge:8*3600000});res.json({ok:true})}));
+app.post('/api/admin/login',rateLimit({windowMs:15*60000,limit:10,message:{error:'Muitas tentativas de acesso. Aguarde 15 minutos e tente novamente.'}}),asyncRoute(async(req,res)=>{const {email,password}=z.object({email:z.string().email(),password:z.string().min(1)}).parse(req.body);const expected=process.env.ADMIN_PASSWORD||'';const a=Buffer.from(password),b=Buffer.from(expected);if(email!==process.env.ADMIN_EMAIL||a.length!==b.length||!timingSafeEqual(a,b)){res.status(401).json({error:'E-mail ou senha incorretos.'});return;}res.cookie('session',jwt.sign({role:'admin'},secret,{expiresIn:'8h'}),{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',maxAge:8*3600000});res.json({ok:true})}));
 app.post('/api/admin/logout',(_,res)=>{res.clearCookie('session');res.json({ok:true})});
 app.use('/api/admin',protect);
 app.get('/api/admin/bookings',asyncRoute(async(_,res)=>res.json(await db.appointment.findMany({include:{client:true,plan:true,slot:true,anamnesis:true},orderBy:{createdAt:'desc'}}))));
@@ -59,5 +64,5 @@ app.post('/api/admin/slots',asyncRoute(async(req,res)=>{const {startsAt}=z.objec
 app.patch('/api/admin/slots/:id',asyncRoute(async(req,res)=>{const {blocked}=z.object({blocked:z.boolean()}).parse(req.body);const result=await db.slot.updateMany({where:{id:req.params.id,reserved:false},data:{blocked}});if(!result.count){res.status(409).json({error:'Horário reservado ou não encontrado.'});return;}res.json({ok:true})}));
 app.use('/api',(_,res)=>res.status(404).json({error:'Endpoint não encontrado.'}));
 app.use(express.static(path.resolve('dist')));app.get('*',(_,res)=>res.sendFile(path.resolve('dist/index.html')));
-app.use((error:any,_req:Request,res:Response,_next:NextFunction)=>{if(error instanceof z.ZodError){res.status(400).json({error:error.issues[0].message});return;}if(error.code==='P2002'){res.status(409).json({error:'Este horário já existe.'});return;}res.status(error.status||500).json({error:error.status?error.message:'Não foi possível concluir. Tente novamente.'});if(!error.status)console.error(error)});
-if(process.env.NODE_ENV!=='test')app.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log('Camaleoa API: http://localhost:3001'));
+app.use((error:any,_req:Request,res:Response,_next:NextFunction)=>{if(error instanceof z.ZodError){res.status(400).json({error:error.issues[0].message,fields:error.flatten().fieldErrors});return;}if(error.type==='entity.parse.failed'){res.status(400).json({error:'Dados inválidos. Revise o formulário e tente novamente.'});return;}if(error.type==='entity.too.large'){res.status(413).json({error:'Os dados enviados excedem o limite. Reduza os textos e tente novamente.'});return;}if(error.code==='P2002'){res.status(409).json({error:'Este horário já existe.'});return;}res.status(error.status||500).json({error:error.status?error.message:'Não foi possível concluir. Tente novamente.'});if(!error.status)console.error(error)});
+if(process.env.NODE_ENV!=='test' && !process.env.VERCEL)app.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log('Camaleoa API: http://localhost:3001'));

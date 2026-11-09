@@ -41,19 +41,22 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
     };
   }, []);
 
-  useEffect(() => {
+  const loadSlots = () => {
+    setError('');
     setLoading(true);
     api<Slot[]>('/slots/available')
       .then(setSlots)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os horários.'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadSlots(); }, []);
 
   const next = async () => {
     const valid = step === 0
-      ? await trigger(['name', 'email', 'whatsapp'])
+      ? await trigger(['name', 'email', 'whatsapp'], { shouldFocus: true })
       : step === 1
-        ? await trigger(['lifestyle', 'goals', 'challenges'])
+        ? await trigger(['lifestyle', 'goals', 'challenges'], { shouldFocus: true })
         : !!slot;
     if (valid) {
       setStep(step + 1);
@@ -64,7 +67,9 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
   };
 
   const submit = async () => {
-    if (!slot || !consent || loading) return;
+    if (loading) return;
+    if (!await trigger(undefined, { shouldFocus: true })) { setStep(0); setError('Revise os campos indicados antes de enviar.'); return; }
+    if (!slot || !consent) { setError('Escolha um horário e autorize o uso dos dados para solicitar o atendimento.'); return; }
     setLoading(true);
     setError('');
     try {
@@ -89,6 +94,9 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
             ? 'Esse horário acabou de ser reservado. Confira a sugestão ou escolha outro horário.'
             : 'Esse horário acabou de ser reservado e não há outros horários disponíveis no momento.');
         } catch (refreshError) {
+          setSlot(null);
+          setSlots([]);
+          setSuggestedSlot(null);
           setStep(2);
           setError(refreshError instanceof Error
             ? `O horário acabou de ser reservado, mas não foi possível atualizar a disponibilidade: ${refreshError.message}`
@@ -133,15 +141,15 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
     <label className="field" key={name}>
       {label}
       {multiline
-        ? <textarea rows={3} placeholder={placeholder} {...register(name)} aria-invalid={!!errors[name]} />
+        ? <textarea rows={3} placeholder={placeholder} {...register(name)} aria-invalid={!!errors[name]} aria-required="true" aria-describedby={`${name}-error`} />
         : <input
             type={name === 'email' ? 'email' : name === 'whatsapp' ? 'tel' : 'text'}
             autoComplete={name === 'name' ? 'name' : name === 'email' ? 'email' : 'tel'}
             placeholder={placeholder}
             {...register(name)}
-            aria-invalid={!!errors[name]}
+            aria-invalid={!!errors[name]} aria-required="true" aria-describedby={`${name}-error`}
           />}
-      <span className="field-error">{errors[name]?.message}</span>
+      <span id={`${name}-error`} className="field-error" aria-live="polite">{errors[name]?.message}</span>
     </label>
   );
   const days = Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, i) => i + 1);
@@ -230,7 +238,7 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
                 </div>
               ))}
             </div>
-            <form onSubmit={event => {
+            <form noValidate onSubmit={event => {
               event.preventDefault();
               step === 3 ? void submit() : void next();
             }}>
@@ -279,7 +287,7 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
                       })}
                     </div>
                     {loading ? <p>Buscando horários…</p> : !slots.length
-                      ? <p>Nenhum horário disponível no momento. Tente novamente mais tarde.</p>
+                      ? <div><p>Nenhum horário disponível no momento.</p><button type="button" className="back" onClick={loadSlots}>Atualizar horários</button></div>
                       : (
                         <div className="time-slots">
                           {day
@@ -335,7 +343,7 @@ export default function Booking({ plan, onClose }: { plan: Plan; onClose: () => 
                   </>
                 )}
               </div>
-              {error && <p className="error" role="alert">{error}</p>}
+              {error && <div role="alert"><p className="error">{error}</p>{step === 2 && <button type="button" className="back" disabled={loading} onClick={loadSlots}>Atualizar horários</button>}</div>}
               <div className="form-actions">
                 {step > 0
                   ? <button type="button" className="back" onClick={() => setStep(step - 1)}><ArrowLeft size={16} /> Voltar</button>
