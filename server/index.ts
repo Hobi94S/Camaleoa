@@ -7,7 +7,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
-import { bookingSchema } from '../shared/validation';
+import { bookingSchema } from '../shared/validation.js';
 import path from 'node:path';
 const db = new PrismaClient();
 export const app = express();
