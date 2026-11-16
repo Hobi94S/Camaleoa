@@ -10,3 +10,4 @@ prisma/*.db*
 !.env.production.example
 docs/publicacao.md
 docs/coleta-de-dados.md
+.neon
